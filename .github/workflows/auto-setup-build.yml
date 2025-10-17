@@ -27,6 +27,8 @@ jobs:
           mkdir -p docs
           mkdir -p app/src/main/java/com/example/moodmind/{di,data/model,data/repo,data/db,ui/navigation,ui/screens,util,workers}
           mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+          mkdir -p app/src/main/res/drawable
 
           # settings.gradle.kts
           cat > settings.gradle.kts <<'EOF'
@@ -56,7 +58,7 @@ jobs:
           kotlin.code.style=official
           EOF
 
-          # build.gradle.kts (root) — добавлен compose plugin
+          # Root build.gradle.kts (Kotlin Compose plugin added)
           cat > build.gradle.kts <<'EOF'
           plugins {
           	id("com.android.application") version "8.6.1" apply false
@@ -83,7 +85,7 @@ jobs:
           *.log
           EOF
 
-          # app/build.gradle.kts — подключён compose plugin
+          # app/build.gradle.kts
           cat > app/build.gradle.kts <<'EOF'
           plugins {
           	id("com.android.application")
@@ -175,6 +177,7 @@ jobs:
           		android:name=".MoodMindApp"
           		android:allowBackup="true"
           		android:icon="@mipmap/ic_launcher"
+          		android:roundIcon="@mipmap/ic_launcher_round"
           		android:label="@string/app_name"
           		android:supportsRtl="true"
           		android:theme="@style/Theme.MoodMind">
@@ -287,7 +290,7 @@ jobs:
           }
           EOF
 
-          # Room DB/DAO/Entity (исправлен autoGenerate)
+          # Room DB/DAO/Entity (correct autoGenerate attr)
           cat > app/src/main/java/com/example/moodmind/data/db/Entities.kt <<'EOF'
           package com.example.moodmind.data.db
           import androidx.room.*
@@ -416,7 +419,7 @@ jobs:
           }
           EOF
 
-          # Resources
+          # Resources: strings + colors + theme
           cat > app/src/main/res/values/strings.xml <<'EOF'
           <resources>
           	<string name="app_name">Relax for all</string>
@@ -426,6 +429,7 @@ jobs:
           cat > app/src/main/res/values/colors.xml <<'EOF'
           <resources>
           	<color name="md_theme_primary">#6750A4</color>
+          	<color name="ic_launcher_background">#6750A4</color>
           </resources>
           EOF
 
@@ -435,6 +439,34 @@ jobs:
           		<item name="android:statusBarColor">?attr/colorPrimary</item>
           	</style>
           </resources>
+          EOF
+
+          # Adaptive launcher icons (regular + round)
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+          	<background android:drawable="@color/ic_launcher_background"/>
+          	<foreground android:drawable="@drawable/ic_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml <<'EOF'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+          	<background android:drawable="@color/ic_launcher_background"/>
+          	<foreground android:drawable="@drawable/ic_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
+
+          # Simple vector foreground for icon (letter R)
+          cat > app/src/main/res/drawable/ic_launcher_foreground.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+          	android:width="108dp" android:height="108dp" android:viewportWidth="108"
+          	android:viewportHeight="108">
+          	<group android:scaleX="0.7" android:scaleY="0.7" android:translateX="16.2" android:translateY="16.2">
+          		<path
+          			android:fillColor="#FFFFFF"
+          			android:pathData="M24,84 L24,24 L54,24 C66,24 74,32 74,44 C74,53.5 68.6,60 59.2,62.3 L78,84 L65.2,84 L49.5,64 L36,64 L36,84 ZM36,34 L53.2,34 C59.9,34 62.9,38.4 62.9,44 C62.9,49.6 59.9,54 53.2,54 L36,54 Z"/>
+          	</group>
+          </vector>
           EOF
 
           # Privacy Policy
