@@ -291,7 +291,7 @@ jobs:
           import androidx.room.*
           @Entity(tableName = "mood_entries")
           data class MoodEntryEntity(
-          	@PrimaryKey(autoGenerate = true) val id: Long = 0,
+          	@PrimaryKey(auto-generate = true) val id: Long = 0,
           	val timestamp: Long,
           	val score: Int,
           	val tagsCsv: String,
@@ -435,7 +435,7 @@ jobs:
           </resources>
           EOF
 
-          # Privacy Policy (для Play Console / ссылки)
+          # Privacy Policy (для Play Console)
           cat > docs/privacy-policy.md <<'EOF'
           # Privacy Policy — Relax for all
           We store your mood logs locally on your device by default. No data is sent to our servers unless you explicitly enable cloud backup (not available in this version).
@@ -447,11 +447,12 @@ jobs:
           Relax for all — mood tracker MVP. Actions will produce a signed app-release.aab ready for Play Console.
           EOF
 
-      - name: Generate Gradle wrapper
+      - name: Generate Gradle wrapper (no cache)
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: 8.9
           arguments: wrapper
+          cache-disabled: true
 
       - name: Generate signing keystore
         shell: bash
@@ -470,8 +471,9 @@ jobs:
       - name: Build release AAB (signed)
         shell: bash
         run: |
+          set -e
           source signing.env
-          ./gradlew clean bundleRelease \
+          ./gradlew --no-daemon --stacktrace --info clean bundleRelease \
             -Pandroid.injected.signing.store.file=keystore.jks \
             -Pandroid.injected.signing.store.password=$STORE_PASS \
             -Pandroid.injected.signing.key.alias=$ALIAS \
