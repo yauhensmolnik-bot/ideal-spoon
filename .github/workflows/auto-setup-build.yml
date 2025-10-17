@@ -56,11 +56,12 @@ jobs:
           kotlin.code.style=official
           EOF
 
-          # build.gradle.kts (root)
+          # build.gradle.kts (root) — добавлен compose plugin
           cat > build.gradle.kts <<'EOF'
           plugins {
           	id("com.android.application") version "8.6.1" apply false
           	id("org.jetbrains.kotlin.android") version "2.0.20" apply false
+          	id("org.jetbrains.kotlin.plugin.compose") version "2.0.20" apply false
           	id("com.google.dagger.hilt.android") version "2.52" apply false
           }
           EOF
@@ -82,11 +83,12 @@ jobs:
           *.log
           EOF
 
-          # app/build.gradle.kts
+          # app/build.gradle.kts — подключён compose plugin
           cat > app/build.gradle.kts <<'EOF'
           plugins {
           	id("com.android.application")
           	id("org.jetbrains.kotlin.android")
+          	id("org.jetbrains.kotlin.plugin.compose")
           	id("com.google.dagger.hilt.android")
           	kotlin("kapt")
           }
@@ -285,13 +287,13 @@ jobs:
           }
           EOF
 
-          # Room DB/DAO/Entity
+          # Room DB/DAO/Entity (исправлен autoGenerate)
           cat > app/src/main/java/com/example/moodmind/data/db/Entities.kt <<'EOF'
           package com.example.moodmind.data.db
           import androidx.room.*
           @Entity(tableName = "mood_entries")
           data class MoodEntryEntity(
-          	@PrimaryKey(auto-generate = true) val id: Long = 0,
+          	@PrimaryKey(autoGenerate = true) val id: Long = 0,
           	val timestamp: Long,
           	val score: Int,
           	val tagsCsv: String,
@@ -435,7 +437,7 @@ jobs:
           </resources>
           EOF
 
-          # Privacy Policy (для Play Console)
+          # Privacy Policy
           cat > docs/privacy-policy.md <<'EOF'
           # Privacy Policy — Relax for all
           We store your mood logs locally on your device by default. No data is sent to our servers unless you explicitly enable cloud backup (not available in this version).
