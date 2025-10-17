@@ -1,0 +1,488 @@
+name: Auto setup, sign and build release AAB
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Create project structure and files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .github/workflows
+          mkdir -p gradle/wrapper
+          mkdir -p docs
+          mkdir -p app/src/main/java/com/example/moodmind/{di,data/model,data/repo,data/db,ui/navigation,ui/screens,util,workers}
+          mkdir -p app/src/main/res/values
+
+          # settings.gradle.kts
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+          	repositories {
+          		google()
+          		mavenCentral()
+          		gradlePluginPortal()
+          	}
+          }
+          dependencyResolutionManagement {
+          	repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+          	repositories {
+          		google()
+          		mavenCentral()
+          	}
+          }
+          rootProject.name = "RelaxForAll"
+          include(":app")
+          EOF
+
+          # gradle.properties
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.enableJetifier=true
+          kotlin.code.style=official
+          EOF
+
+          # build.gradle.kts (root)
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+          	id("com.android.application") version "8.6.1" apply false
+          	id("org.jetbrains.kotlin.android") version "2.0.20" apply false
+          	id("com.google.dagger.hilt.android") version "2.52" apply false
+          }
+          EOF
+
+          # .gitignore
+          cat > .gitignore <<'EOF'
+          *.iml
+          .gradle/
+          local.properties
+          **/build/
+          .cxx/
+          .externalNativeBuild/
+          captures/
+          *.apk
+          *.aab
+          .idea/
+          *.keystore
+          *.jks
+          *.log
+          EOF
+
+          # app/build.gradle.kts
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+          	id("com.android.application")
+          	id("org.jetbrains.kotlin.android")
+          	id("com.google.dagger.hilt.android")
+          	kotlin("kapt")
+          }
+          android {
+          	namespace = "com.example.moodmind"
+          	compileSdk = 35
+          	defaultConfig {
+          		applicationId = "com.example.moodmind"
+          		minSdk = 24
+          		targetSdk = 35
+          		versionCode = 1
+          		versionName = "1.0.0"
+          		vectorDrawables.useSupportLibrary = true
+          	}
+          	buildTypes {
+          		release {
+          			isMinifyEnabled = true
+          			proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+          		}
+          		debug { isMinifyEnabled = false }
+          	}
+          	compileOptions {
+          		sourceCompatibility = JavaVersion.VERSION_17
+          		targetCompatibility = JavaVersion.VERSION_17
+          	}
+          	kotlinOptions { jvmTarget = "17" }
+          	buildFeatures { compose = true }
+          	composeOptions { kotlinCompilerExtensionVersion = "1.5.15" }
+          	packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+          }
+          dependencies {
+          	val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
+          	implementation(composeBom)
+          	androidTestImplementation(composeBom)
+
+          	implementation("androidx.core:core-ktx:1.13.1")
+          	implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.5")
+          	implementation("androidx.activity:activity-compose:1.9.2")
+          	implementation("androidx.compose.ui:ui")
+          	implementation("androidx.compose.material3:material3")
+          	implementation("androidx.compose.ui:ui-tooling-preview")
+          	debugImplementation("androidx.compose.ui:ui-tooling")
+          	implementation("androidx.compose.foundation:foundation")
+          	implementation("androidx.navigation:navigation-compose:2.8.2")
+
+          	// Hilt
+          	implementation("com.google.dagger:hilt-android:2.52")
+          	kapt("com.google.dagger:hilt-compiler:2.52")
+          	implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+
+          	// WorkManager
+          	implementation("androidx.work:work-runtime-ktx:2.9.1")
+          	implementation("androidx.hilt:hilt-work:1.2.0")
+          	kapt("androidx.hilt:hilt-compiler:1.2.0")
+
+          	// Room
+          	implementation("androidx.room:room-runtime:2.6.1")
+          	kapt("androidx.room:room-compiler:2.6.1")
+          	implementation("androidx.room:room-ktx:2.6.1")
+
+          	// Billing
+          	implementation("com.android.billingclient:billing-ktx:7.0.0")
+
+          	// Accompanist FlowLayout
+          	implementation("com.google.accompanist:accompanist-flowlayout:0.36.0")
+          }
+          kapt { correctErrorTypes = true }
+          EOF
+
+          # proguard
+          cat > app/proguard-rules.pro <<'EOF'
+          -keep class dagger.hilt.** { *; }
+          -keep class androidx.work.impl.background.systemjob.SystemJobService { *; }
+          -keep class androidx.work.impl.background.systemalarm.SystemAlarmService { *; }
+          -keep class androidx.room.** { *; }
+          -keep class com.android.billingclient.api.** { *; }
+          EOF
+
+          # Manifest
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.moodmind">
+          	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+          	<application
+          		android:name=".MoodMindApp"
+          		android:allowBackup="true"
+          		android:icon="@mipmap/ic_launcher"
+          		android:label="@string/app_name"
+          		android:supportsRtl="true"
+          		android:theme="@style/Theme.MoodMind">
+          		<activity android:name=".MainActivity" android:exported="true">
+          			<intent-filter>
+          				<action android:name="android.intent.action.MAIN" />
+          				<category android:name="android.intent.category.LAUNCHER" />
+          			</intent-filter>
+          		</activity>
+          	</application>
+          </manifest>
+          EOF
+
+          # App class
+          cat > app/src/main/java/com/example/moodmind/MoodMindApp.kt <<'EOF'
+          package com.example.moodmind
+          import android.app.Application
+          import dagger.hilt.android.HiltAndroidApp
+          @HiltAndroidApp
+          class MoodMindApp : Application()
+          EOF
+
+          # MainActivity
+          cat > app/src/main/java/com/example/moodmind/MainActivity.kt <<'EOF'
+          package com.example.moodmind
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.material3.MaterialTheme
+          import androidx.compose.material3.Surface
+          import com.example.moodmind.ui.navigation.MoodNavHost
+          import dagger.hilt.android.AndroidEntryPoint
+          @AndroidEntryPoint
+          class MainActivity : ComponentActivity() {
+          	override fun onCreate(savedInstanceState: Bundle?) {
+          		super.onCreate(savedInstanceState)
+          		setContent { Surface(color = MaterialTheme.colorScheme.background) { MoodNavHost() } }
+          	}
+          }
+          EOF
+
+          # Navigation
+          cat > app/src/main/java/com/example/moodmind/ui/navigation/NavGraph.kt <<'EOF'
+          package com.example.moodmind.ui.navigation
+          import androidx.compose.runtime.Composable
+          import androidx.hilt.navigation.compose.hiltViewModel
+          import androidx.navigation.compose.NavHost
+          import androidx.navigation.compose.composable
+          import androidx.navigation.compose.rememberNavController
+          import com.example.moodmind.ui.screens.QuickLogScreen
+          object Routes { const val HOME = "home"; const val LOG = "log" }
+          @Composable
+          fun MoodNavHost() {
+          	val navController = rememberNavController()
+          	NavHost(navController = navController, startDestination = Routes.HOME) {
+          		composable(Routes.HOME) { QuickLogScreen(onSaved = { }, viewModel = hiltViewModel()) }
+          		composable(Routes.LOG)  { QuickLogScreen(onSaved = { navController.popBackStack() }, viewModel = hiltViewModel()) }
+          	}
+          }
+          EOF
+
+          # DI + Room
+          cat > app/src/main/java/com/example/moodmind/di/AppModule.kt <<'EOF'
+          package com.example.moodmind.di
+          import android.content.Context
+          import androidx.room.Room
+          import com.example.moodmind.data.db.AppDatabase
+          import com.example.moodmind.data.db.MoodDao
+          import com.example.moodmind.data.repo.MoodRepository
+          import com.example.moodmind.data.repo.RoomMoodRepository
+          import com.example.moodmind.util.SystemTimeProvider
+          import com.example.moodmind.util.TimeProvider
+          import dagger.Module
+          import dagger.Provides
+          import dagger.hilt.InstallIn
+          import dagger.hilt.android.qualifiers.ApplicationContext
+          import dagger.hilt.components.SingletonComponent
+          import javax.inject.Singleton
+          @Module
+          @InstallIn(SingletonComponent::class)
+          object AppModule {
+          	@Provides @Singleton
+          	fun provideDb(@ApplicationContext ctx: Context): AppDatabase =
+          		Room.databaseBuilder(ctx, AppDatabase::class.java, "moodmind.db").build()
+          	@Provides fun provideMoodDao(db: AppDatabase): MoodDao = db.moodDao()
+          	@Provides @Singleton fun provideRepo(dao: MoodDao): MoodRepository = RoomMoodRepository(dao)
+          	@Provides @Singleton fun provideTimeProvider(): TimeProvider = SystemTimeProvider()
+          }
+          EOF
+
+          # Data models
+          cat > app/src/main/java/com/example/moodmind/data/model/MoodEntry.kt <<'EOF'
+          package com.example.moodmind.data.model
+          data class MoodEntry(
+          	val id: Long = 0L,
+          	val timestamp: Long,
+          	val score: Int,
+          	val tags: List<String> = emptyList(),
+          	val note: String? = null,
+          	val sleepHours: Float? = null
+          )
+          EOF
+
+          cat > app/src/main/java/com/example/moodmind/data/model/MoodTags.kt <<'EOF'
+          package com.example.moodmind.data.model
+          object MoodTags {
+          	val positive = listOf("сон_хороший", "спорт", "прогулка", "общение", "успех")
+          	val negative = listOf("стресс_работа", "сон_мало", "конфликт", "переедание", "болезнь")
+          	val all = (positive + negative).sorted()
+          }
+          EOF
+
+          # Room DB/DAO/Entity
+          cat > app/src/main/java/com/example/moodmind/data/db/Entities.kt <<'EOF'
+          package com.example.moodmind.data.db
+          import androidx.room.*
+          @Entity(tableName = "mood_entries")
+          data class MoodEntryEntity(
+          	@PrimaryKey(autoGenerate = true) val id: Long = 0,
+          	val timestamp: Long,
+          	val score: Int,
+          	val tagsCsv: String,
+          	val note: String?,
+          	val sleepHours: Float?
+          )
+          @Dao
+          interface MoodDao {
+          	@Insert suspend fun insert(item: MoodEntryEntity)
+          	@Query("SELECT * FROM mood_entries ORDER BY timestamp DESC LIMIT :limit")
+          	suspend fun recent(limit: Int = 100): List<MoodEntryEntity>
+          }
+          @Database(entities = [MoodEntryEntity::class], version = 1)
+          abstract class AppDatabase : RoomDatabase() {
+          	abstract fun moodDao(): MoodDao
+          }
+          EOF
+
+          # Repository
+          cat > app/src/main/java/com/example/moodmind/data/repo/Repo.kt <<'EOF'
+          package com.example.moodmind.data.repo
+          import com.example.moodmind.data.db.MoodDao
+          import com.example.moodmind.data.db.MoodEntryEntity
+          import com.example.moodmind.data.model.MoodEntry
+          import javax.inject.Inject
+          interface MoodRepository { suspend fun insert(entry: MoodEntry) }
+          class RoomMoodRepository @Inject constructor(private val dao: MoodDao): MoodRepository {
+          	override suspend fun insert(entry: MoodEntry) {
+          		dao.insert(MoodEntryEntity(
+          			timestamp = entry.timestamp,
+          			score = entry.score,
+          			tagsCsv = entry.tags.joinToString(","),
+          			note = entry.note,
+          			sleepHours = entry.sleepHours
+          		))
+          	}
+          }
+          EOF
+
+          # Util
+          cat > app/src/main/java/com/example/moodmind/util/TimeProvider.kt <<'EOF'
+          package com.example.moodmind.util
+          interface TimeProvider { fun now(): Long }
+          class SystemTimeProvider : TimeProvider { override fun now(): Long = System.currentTimeMillis() }
+          EOF
+
+          # QuickLog screen
+          cat > app/src/main/java/com/example/moodmind/ui/screens/QuickLogScreen.kt <<'EOF'
+          package com.example.moodmind.ui.screens
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.Check
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.unit.dp
+          import androidx.hilt.navigation.compose.hiltViewModel
+          import com.example.moodmind.data.model.MoodEntry
+          import com.example.moodmind.data.model.MoodTags
+          import com.example.moodmind.data.repo.MoodRepository
+          import com.example.moodmind.util.TimeProvider
+          import com.google.accompanist.flowlayout.FlowRow
+          import dagger.hilt.android.lifecycle.HiltViewModel
+          import javax.inject.Inject
+          import androidx.lifecycle.ViewModel
+          import androidx.lifecycle.viewModelScope
+          import kotlinx.coroutines.flow.MutableStateFlow
+          import kotlinx.coroutines.flow.StateFlow
+          import kotlinx.coroutines.flow.update
+          import kotlinx.coroutines.launch
+          @Composable
+          fun QuickLogScreen(onSaved: () -> Unit, viewModel: QuickLogViewModel = hiltViewModel()) {
+          	val uiState by viewModel.state.collectAsState()
+          	Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+          		Text("Как ты сейчас?", style = MaterialTheme.typography.titleLarge)
+          		Spacer(Modifier.height(12.dp))
+          		Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          			(1..5).forEach { value ->
+          				val selected = uiState.score == value
+          				AssistChip(
+          					onClick = { viewModel.onScoreSelected(value) },
+          					label = { Text("$value") },
+          					leadingIcon = if (selected) ({ Icon(Icons.Default.Check, null) }) else null,
+          					colors = AssistChipDefaults.assistChipColors()
+          				)
+          			}
+          		}
+          		Spacer(Modifier.height(12.dp))
+          		FlowRow(mainAxisSpacing = 8.dp, crossAxisSpacing = 8.dp) {
+          			MoodTags.all.forEach { tag ->
+          				val selected = uiState.selectedTags.contains(tag)
+          				FilterChip(selected = selected, onClick = { viewModel.onTagToggled(tag) }, label = { Text(tag.replace('_', ' ')) })
+          			}
+          		}
+          		Spacer(Modifier.height(12.dp))
+          		OutlinedTextField(
+          			value = uiState.note, onValueChange = viewModel::onNoteChanged,
+          			modifier = Modifier.fillMaxWidth(), label = { Text("Короткая заметка (опционально)") },
+          			singleLine = false, minLines = 2
+          		)
+          		Spacer(Modifier.height(16.dp))
+          		Button(onClick = { viewModel.save(); onSaved() }, enabled = uiState.score in 1..5) { Text("Сохранить") }
+          	}
+          }
+          data class QuickLogState(val score: Int = 0, val selectedTags: Set<String> = emptySet(), val note: String = "")
+          @HiltViewModel
+          class QuickLogViewModel @Inject constructor(private val repo: MoodRepository, private val timeProvider: TimeProvider) : ViewModel() {
+          	private val _state = MutableStateFlow(QuickLogState())
+          	val state: StateFlow<QuickLogState> = _state
+          	fun onScoreSelected(value: Int) { _state.update { it.copy(score = value) } }
+          	fun onTagToggled(tag: String) {
+          		_state.update { s -> val next = s.selectedTags.toMutableSet().also { if (!it.add(tag)) it.remove(tag) }; s.copy(selectedTags = next) }
+          	}
+          	fun onNoteChanged(text: String) { _state.update { it.copy(note = text) } }
+          	fun save() {
+          		val s = _state.value; if (s.score !in 1..5) return
+          		val entry = MoodEntry(timestamp = timeProvider.now(), score = s.score, tags = s.selectedTags.toList(), note = s.note.ifBlank { null })
+          		viewModelScope.launch { repo.insert(entry); _state.value = QuickLogState() }
+          	}
+          }
+          EOF
+
+          # Resources
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+          	<string name="app_name">Relax for all</string>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/values/colors.xml <<'EOF'
+          <resources>
+          	<color name="md_theme_primary">#6750A4</color>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/values/themes.xml <<'EOF'
+          <resources xmlns:tools="http://schemas.android.com/tools">
+          	<style name="Theme.MoodMind" parent="Theme.Material3.DayNight.NoActionBar">
+          		<item name="android:statusBarColor">?attr/colorPrimary</item>
+          	</style>
+          </resources>
+          EOF
+
+          # Privacy Policy (для Play Console / ссылки)
+          cat > docs/privacy-policy.md <<'EOF'
+          # Privacy Policy — Relax for all
+          We store your mood logs locally on your device by default. No data is sent to our servers unless you explicitly enable cloud backup (not available in this version).
+          Contact: yauhensmolnik@gmail.com
+          EOF
+
+          # README
+          cat > README.md <<'EOF'
+          Relax for all — mood tracker MVP. Actions will produce a signed app-release.aab ready for Play Console.
+          EOF
+
+      - name: Generate Gradle wrapper
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 8.9
+          arguments: wrapper
+
+      - name: Generate signing keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          STORE_PASS=$(openssl rand -hex 12)
+          KEY_PASS=$(openssl rand -hex 12)
+          ALIAS=relaxforall
+          echo "STORE_PASS=$STORE_PASS" >> signing.env
+          echo "KEY_PASS=$KEY_PASS" >> signing.env
+          echo "ALIAS=$ALIAS" >> signing.env
+          keytool -genkeypair -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 36500 \
+            -keystore keystore.jks -storepass "$STORE_PASS" -keypass "$KEY_PASS" \
+            -dname "CN=Relax for all, OU=App, O=Relax, L=, S=, C=US"
+
+      - name: Build release AAB (signed)
+        shell: bash
+        run: |
+          source signing.env
+          ./gradlew clean bundleRelease \
+            -Pandroid.injected.signing.store.file=keystore.jks \
+            -Pandroid.injected.signing.store.password=$STORE_PASS \
+            -Pandroid.injected.signing.key.alias=$ALIAS \
+            -Pandroid.injected.signing.key.password=$KEY_PASS
+
+      - name: Upload artifacts (AAB + keystore + passwords)
+        uses: actions/upload-artifact@v4
+        with:
+          name: relax-for-all-release
+          path: |
+            app/build/outputs/bundle/release/app-release.aab
+            keystore.jks
+            signing.env
+          retention-days: 7
