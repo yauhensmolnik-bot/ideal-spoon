@@ -58,7 +58,7 @@ jobs:
           kotlin.code.style=official
           EOF
 
-          # Root build.gradle.kts (Kotlin Compose plugin added)
+          # Root build.gradle.kts (Kotlin 2.0 + Compose plugin)
           cat > build.gradle.kts <<'EOF'
           plugins {
           	id("com.android.application") version "8.6.1" apply false
@@ -169,7 +169,7 @@ jobs:
           -keep class com.android.billingclient.api.** { *; }
           EOF
 
-          # Manifest
+          # AndroidManifest.xml
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.moodmind">
           	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -290,7 +290,7 @@ jobs:
           }
           EOF
 
-          # Room DB/DAO/Entity (correct autoGenerate attr)
+          # Room DB/DAO/Entity
           cat > app/src/main/java/com/example/moodmind/data/db/Entities.kt <<'EOF'
           package com.example.moodmind.data.db
           import androidx.room.*
@@ -419,7 +419,7 @@ jobs:
           }
           EOF
 
-          # Resources: strings + colors + theme
+          # Resources: strings + colors
           cat > app/src/main/res/values/strings.xml <<'EOF'
           <resources>
           	<string name="app_name">Relax for all</string>
@@ -428,16 +428,14 @@ jobs:
 
           cat > app/src/main/res/values/colors.xml <<'EOF'
           <resources>
-          	<color name="md_theme_primary">#6750A4</color>
           	<color name="ic_launcher_background">#6750A4</color>
           </resources>
           EOF
 
+          # Material3 theme (без colorPrimary)
           cat > app/src/main/res/values/themes.xml <<'EOF'
-          <resources xmlns:tools="http://schemas.android.com/tools">
-          	<style name="Theme.MoodMind" parent="Theme.Material3.DayNight.NoActionBar">
-          		<item name="android:statusBarColor">?attr/colorPrimary</item>
-          	</style>
+          <resources>
+          	<style name="Theme.MoodMind" parent="Theme.Material3.DayNight.NoActionBar" />
           </resources>
           EOF
 
