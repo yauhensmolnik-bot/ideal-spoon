@@ -419,27 +419,28 @@ jobs:
           }
           EOF
 
-          # Resources: strings + colors
+          # Resources: strings
           cat > app/src/main/res/values/strings.xml <<'EOF'
           <resources>
           	<string name="app_name">Relax for all</string>
           </resources>
           EOF
 
+          # Colors for icon background only
           cat > app/src/main/res/values/colors.xml <<'EOF'
           <resources>
           	<color name="ic_launcher_background">#6750A4</color>
           </resources>
           EOF
 
-          # Material3 theme (без colorPrimary)
+          # Material3 theme (no NoActionBar, no colorPrimary)
           cat > app/src/main/res/values/themes.xml <<'EOF'
           <resources>
-          	<style name="Theme.MoodMind" parent="Theme.Material3.DayNight.NoActionBar" />
+          	<style name="Theme.MoodMind" parent="Theme.Material3.DayNight" />
           </resources>
           EOF
 
-          # Adaptive launcher icons (regular + round)
+          # Adaptive launcher icons
           cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
           <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
           	<background android:drawable="@color/ic_launcher_background"/>
@@ -454,7 +455,7 @@ jobs:
           </adaptive-icon>
           EOF
 
-          # Simple vector foreground for icon (letter R)
+          # Vector icon foreground
           cat > app/src/main/res/drawable/ic_launcher_foreground.xml <<'EOF'
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
           	android:width="108dp" android:height="108dp" android:viewportWidth="108"
@@ -478,6 +479,14 @@ jobs:
           cat > README.md <<'EOF'
           Relax for all — mood tracker MVP. Actions will produce a signed app-release.aab ready for Play Console.
           EOF
+
+      - name: Sanity fix theme (force remove any NoActionBar)
+        shell: bash
+        run: |
+          set -e
+          if grep -R "NoActionBar" -n app/src/main/res; then
+            sed -i 's/Theme.Material3.DayNight.NoActionBar/Theme.Material3.DayNight/g' $(grep -Rl "NoActionBar" app/src/main/res) || true
+          fi
 
       - name: Generate Gradle wrapper (no cache)
         uses: gradle/gradle-build-action@v2
